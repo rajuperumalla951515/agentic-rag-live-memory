@@ -1,6 +1,7 @@
 import type { Conversation, Message, TokenResponse, Workspace } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+let demoSessionRequest: Promise<TokenResponse> | null = null;
 
 async function request<T>(path: string, token?: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
@@ -19,6 +20,16 @@ async function request<T>(path: string, token?: string, init?: RequestInit): Pro
 }
 
 export const api = {
+  demoSession: () => {
+    if (!demoSessionRequest) {
+      demoSessionRequest = request<TokenResponse>("/api/v1/auth/demo-session", undefined, {
+        method: "POST",
+      }).finally(() => {
+        demoSessionRequest = null;
+      });
+    }
+    return demoSessionRequest;
+  },
   authenticate: (mode: "login" | "register", email: string, password: string) =>
     request<TokenResponse>(`/api/v1/auth/${mode}`, undefined, {
       method: "POST",

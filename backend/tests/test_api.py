@@ -135,3 +135,60 @@ def test_registration_rejects_short_password(client: TestClient):
         json={"email": "person@example.com", "password": "short"},
     )
     assert response.status_code == 422
+
+
+def test_demo_session_is_disabled_by_default(client: TestClient):
+    response = client.post("/api/v1/auth/demo-session")
+    assert response.status_code == 404
+
+
+def test_demo_session_stays_disabled_in_production(tmp_path):
+    settings = Settings(
+        database_url=f"sqlite+aiosqlite:///{tmp_path / 'production.db'}",
+        secret_key=SecretStr("test-only-signing-key-that-is-long-enough"),
+        app_env="production",
+        demo_mode=True,
+    )
+    app = create_app(settings)
+
+    async def create_tables():
+        async with app.state.engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+
+    asyncio.run(create_tables())
+    with TestClient(app) as production_client:
+        response = production_client.post("/api/v1/auth/demo-session")
+        assert response.status_code == 404
+
+
+def test_demo_session_is_opt_in_and_keeps_api_authenticated(tmp_path):
+    settings = Settings(
+        database_url=f"sqlite+aiosqlite:///{tmp_path / 'demo.db'}",
+        secret_key=SecretStr("test-only-signing-key-that-is-long-enough"),
+        app_env="development",
+        demo_mode=True,
+    )
+    app = create_app(settings)
+
+    async def create_tables():
+        async with app.state.engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+
+    asyncio.run(create_tables())
+    with TestClient(app) as demo_client:
+        first_session = demo_client.post("/api/v1/auth/demo-session")
+        assert first_session.status_code == 200
+        token = first_session.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        workspaces = demo_client.get("/api/v1/workspaces", headers=headers)
+        assert workspaces.status_code == 200
+        assert len(workspaces.json()) == 1
+        assert workspaces.json()[0]["name"] == "Demo"
+
+        second_session = demo_client.post("/api/v1/auth/demo-session")
+        assert second_session.status_code == 200
+        assert second_session.json()["user"]["id"] == first_session.json()["user"]["id"]
+
+        unauthenticated = demo_client.get("/api/v1/workspaces")
+        assert unauthenticated.status_code == 401

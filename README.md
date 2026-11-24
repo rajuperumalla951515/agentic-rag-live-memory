@@ -4,7 +4,7 @@ An evidence-backed workspace for connecting external knowledge sources, retrievi
 
 ## Current status
 
-Phase 1 foundation is implemented: user registration and login, personal and additional workspaces, conversation/message persistence, a React workspace shell, PostgreSQL migrations, and a Docker Compose development environment.
+Phase 1 foundation is implemented: user registration and login, an opt-in local demo session, personal and additional workspaces, conversation/message persistence, a React workspace shell, PostgreSQL migrations, and a Docker Compose development environment.
 
 The chat currently stores user messages only. It does not generate AI answers. Integrations, retrieval, long-term memory, refresh tokens, and background synchronization are not implemented yet.
 
@@ -20,6 +20,7 @@ The chat currently stores user messages only. It does not generate AI answers. I
 
 1. Copy `.env.example` to `.env`.
 2. Replace `SECRET_KEY` and `POSTGRES_PASSWORD` with random values. Update the password in `DATABASE_URL` to match `POSTGRES_PASSWORD`; URL-encode special characters in the URL. Generate a signing key with `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+   The example enables direct access for the local Vite development server using `APP_ENV=development` and `DEMO_MODE=true`. The backend still issues a signed access token and requires it for workspace APIs. Do not enable demo mode in production.
 3. Start PostgreSQL and Redis: `docker compose -f infrastructure/docker-compose.yml up -d postgres redis`.
 4. In a terminal, from `backend`, install the project and run migrations:
 
@@ -47,6 +48,7 @@ To run the backend in Docker instead, start all Compose services with `docker co
 - `GET /health` checks the database connection.
 - `POST /api/v1/auth/register` creates a user and personal workspace, then returns an access token.
 - `POST /api/v1/auth/login` authenticates a user.
+- `POST /api/v1/auth/demo-session` creates or reuses a local demo account only when `APP_ENV=development` and `DEMO_MODE=true`.
 - `GET|POST /api/v1/workspaces` lists or creates workspaces for the authenticated user.
 - `GET|POST /api/v1/workspaces/{workspace_id}/conversations` lists or creates conversations in an accessible workspace.
 - `GET|POST /api/v1/conversations/{conversation_id}/messages` lists or stores user messages in an accessible conversation.

@@ -5,16 +5,36 @@ import type { Conversation, Message, TokenResponse, Workspace } from "./types";
 
 export default function App() {
   const [token, setToken] = useState<string | null>(null);
+  const [demoLoading, setDemoLoading] = useState(import.meta.env.DEV);
+  const [demoError, setDemoError] = useState("");
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    let active = true;
+    api.demoSession()
+      .then((result) => active && setToken(result.access_token))
+      .catch((caught: unknown) => active && setDemoError(errorText(caught)))
+      .finally(() => active && setDemoLoading(false));
+    return () => { active = false; };
+  }, []);
+
+  if (demoLoading) {
+    return (
+      <main className="auth-page">
+        <p className="muted" role="status">Opening local demo workspace...</p>
+      </main>
+    );
+  }
 
   return (
     <Routes>
       <Route
         path="/login"
-        element={token ? <Navigate to="/" replace /> : <AuthPage onAuthenticated={setToken} />}
+        element={token ? <Navigate to="/" replace /> : <AuthPage onAuthenticated={setToken} notice={demoError} />}
       />
       <Route
         path="/register"
-        element={token ? <Navigate to="/" replace /> : <AuthPage onAuthenticated={setToken} />}
+        element={token ? <Navigate to="/" replace /> : <AuthPage onAuthenticated={setToken} notice={demoError} />}
       />
       <Route
         path="/*"
@@ -22,7 +42,7 @@ export default function App() {
           token ? (
             <WorkspacePage token={token} onSignOut={() => setToken(null)} />
           ) : (
-            <Navigate to="/login" replace />
+            <AuthPage onAuthenticated={setToken} notice={demoError} />
           )
         }
       />
@@ -30,7 +50,13 @@ export default function App() {
   );
 }
 
-export function AuthPage({ onAuthenticated }: { onAuthenticated: (token: string) => void }) {
+export function AuthPage({
+  onAuthenticated,
+  notice = "",
+}: {
+  onAuthenticated: (token: string) => void;
+  notice?: string;
+}) {
   const location = useLocation();
   const navigate = useNavigate();
   const mode = location.pathname === "/register" ? "register" : "login";
@@ -60,6 +86,11 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (token: string)
         <p className="eyebrow">PERSONAL KNOWLEDGE WORKSPACE</p>
         <h1>agentic-rag-live-memory</h1>
         <p className="muted">Sign in to your workspace to continue.</p>
+        {notice && (
+          <p className="error" role="status">
+            Local demo is unavailable: {notice}. Sign in or enable DEMO_MODE in the backend configuration.
+          </p>
+        )}
         <form onSubmit={submit}>
           <label htmlFor="email">Email</label>
           <input
